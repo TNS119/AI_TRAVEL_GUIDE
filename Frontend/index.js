@@ -101,7 +101,7 @@ closeButton.addEventListener('click', deselectDestination);
 const inputChange = ()=>{
   activeController?.abort();
   activeController = null;
-  
+
   generateButton.disabled = false;
   generateButton.textContent = 'Generate Audio Guide';
 }

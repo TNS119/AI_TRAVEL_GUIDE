@@ -58,7 +58,7 @@ Open PowerShell in the project root:
 ```powershell
 cd Backend
 py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt requests
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 Copy-Item example.env .env
 ```
 
@@ -87,7 +87,7 @@ From the project root:
 ```bash
 cd Backend
 python3 -m venv .venv
-./.venv/bin/python -m pip install -r requirements.txt requests
+./.venv/bin/python -m pip install -r requirements.txt
 cp example.env .env
 ```
 
@@ -104,13 +104,6 @@ npx --yes http-server ./Frontend -p 8080
 ```
 
 Open `http://127.0.0.1:8080` in your browser.
-
-### Dependency note
-
-`app.py` imports the `requests` package, but `requests` is not currently listed
-in `Backend/requirements.txt`. The install commands above include it explicitly
-so the backend can run. If you maintain the dependency list, add `requests` to
-that file and then `pip install -r requirements.txt` will be sufficient.
 
 ## Using the app
 
@@ -164,8 +157,8 @@ requires valid Gemini and Murf API keys and network access to both services.
 
 ## Troubleshooting
 
-- **`ModuleNotFoundError: No module named 'requests'`**: install it with
-  `python -m pip install requests`, or add it to `Backend/requirements.txt`.
+- **Dependency installation fails**: check the Render build logs and verify
+  `Backend/requirements.txt` installs successfully in a local virtual environment.
 - **Missing or invalid API key errors**: check that `Backend/.env` contains
   `GEMINI_API_KEY` and `MURF_API_KEY`, with valid values and no surrounding
   quotes unless required by your key.
@@ -178,10 +171,59 @@ requires valid Gemini and Murf API keys and network access to both services.
 - **Gemini generation fails**: check backend output, API access, and the model
   configured in `Backend/app.py`.
 
-## Security and deployment
+## Deploy to Render
 
-The Flask development server is configured with `debug=True` and is intended
-for local development. Do not expose it directly to the public internet. For
-deployment, use a production WSGI server, disable debug mode, configure
-environment variables through the host, restrict CORS to the frontend origin,
-and update the frontend API URL to the deployed backend.
+The backend and frontend can be deployed as separate Render services. The
+backend uses Gunicorn in production; `app.run(debug=True)` is guarded for local
+development and is not used by Gunicorn.
+
+### Backend Web Service
+
+Create a **Web Service** connected to the repository with:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `Backend` |
+| Runtime | Python |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `gunicorn --bind 0.0.0.0:$PORT --timeout 180 app:app` |
+
+Add these environment variables in the Render service settings:
+
+| Variable | Value |
+| --- | --- |
+| `GEMINI_API_KEY` | Your Gemini API key |
+| `MURF_API_KEY` | Your Murf API key |
+
+After the backend deploys, copy its Render URL, for example
+`https://your-api.onrender.com`.
+
+### Frontend Static Site
+
+Create a **Static Site** from the same repository:
+
+| Setting | Value |
+| --- | --- |
+| Build Command | Leave blank |
+| Publish Directory | `Frontend` |
+
+Before deploying the frontend, update `GENERATE_AUDIO_GUIDE_API_URL` in
+`Frontend/index.js` to the backend URL:
+
+```js
+const GENERATE_AUDIO_GUIDE_API_URL =
+  "https://your-api.onrender.com/generate-audio-guide";
+```
+
+Use the actual backend URL from Render.
+
+### Deployment notes
+
+- Do not commit `.env` files or put API keys in frontend JavaScript. The browser
+  code is public; keep provider keys only in the backend environment.
+- `gunicorn` and `requests` are listed in `Backend/requirements.txt`.
+- Render provides the `PORT` environment variable; Gunicorn binds to it.
+- This project uses synchronous Gemini and Murf API calls. Gunicorn's worker
+  timeout is set to 180 seconds to allow time for generation.
+- Flask debug mode is used only when running `python app.py` locally. Do not
+  expose Flask's development server or enable debug mode in production.
